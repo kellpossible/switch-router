@@ -1,5 +1,6 @@
 [package]
 name = "yew-switch-router"
+description = "An alternate version of the yew RouteService, which aims to provide a more type safe API for setting routes, and some other improvements."
 version = "0.1.0"
 authors = ["Luke Frisken <l.frisken@gmail.com>"]
 edition = "2018"
