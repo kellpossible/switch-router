@@ -1,5 +1,5 @@
 use gloo_events::EventListener;
-use std::{cell::RefCell, fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, fmt::Debug, marker::PhantomData, rc::{Weak, Rc}};
 use wasm_bindgen::JsValue;
 use web_sys::{History, Location};
 
@@ -9,6 +9,7 @@ pub trait SwitchRoute: Clone + PartialEq {
     fn switch(route: &str) -> Self;
 }
 
+#[derive(Clone)]
 pub struct Callback<SR>(Rc<dyn Fn(SR)>);
 
 impl<SR> Callback<SR> {
@@ -26,15 +27,33 @@ impl<SR> Debug for Callback<SR> {
     }
 }
 
-impl<SR> PartialEq for Callback<SR> {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+#[derive(Clone)]
+pub struct Listener<SR>(Weak<dyn Fn(SR)>);
+
+impl<SR> Listener<SR> {
+    pub fn callback(&self) -> Option<Callback<SR>> {
+        Weak::upgrade(&self.0).map(|rc| Callback(rc))
     }
 }
 
-impl<SR> Clone for Callback<SR> {
-    fn clone(&self) -> Self {
-        Callback(Rc::clone(&self.0))
+impl<SR> Debug for Listener<SR> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match Weak::upgrade(&self.0) {
+            Some(rc) =>  write!(f, "Listener({:p})", rc),
+            None => write!(f, "Listener(None)"),
+        }
+    }
+}
+
+pub trait AsListener {
+    type SR;
+    fn as_listener(&self) -> Listener<Self::SR>;
+}
+
+impl<SR> AsListener for Callback<SR> {
+    type SR = SR;
+    fn as_listener(&self) -> Listener<Self::SR> {
+        Listener(Rc::downgrade(&self.0))
     }
 }
 
@@ -47,14 +66,13 @@ where
     }
 }
 
-type CallbackVec<SR> = Rc<RefCell<Vec<Callback<SR>>>>;
+type ListenerVec<SR> = Rc<RefCell<Vec<Listener<SR>>>>;
 
 #[derive(Debug)]
 pub struct SwitchRouteService<SR> {
     history: History,
     location: Location,
-    // TODO: change this to use weak references for callback listeners. #23
-    callbacks: CallbackVec<SR>,
+    listeners: ListenerVec<SR>,
     event_listener: EventListener,
     switch_route_type: PhantomData<SR>,
 }
@@ -94,7 +112,7 @@ where
         Self {
             history,
             location,
-            callbacks,
+            listeners: callbacks,
             event_listener,
             switch_route_type: PhantomData::default(),
         }
@@ -106,7 +124,7 @@ where
         self.history
             .push_state_with_url(&JsValue::null(), "", Some(&route.path()))
             .unwrap();
-        Self::notify_callbacks(&self.callbacks, route);
+        Self::notify_callbacks(&self.listeners, route);
     }
 
     pub fn replace_route<SRI: Into<SR>>(&mut self, switch_route: SRI) -> SR {
@@ -116,7 +134,7 @@ where
         self.history
             .replace_state_with_url(&JsValue::null(), "", Some(&route.path()))
             .unwrap();
-        Self::notify_callbacks(&self.callbacks, route);
+        Self::notify_callbacks(&self.listeners, route);
         return_route
     }
 
@@ -135,30 +153,37 @@ where
         Self::route_from_location(&self.location)
     }
 
-    fn notify_callbacks(callbacks: &CallbackVec<SR>, switch_route: SR) {
-        for callback in RefCell::borrow(&*callbacks).iter() {
-            callback.emit(switch_route.clone());
+    fn notify_callbacks(listeners: &ListenerVec<SR>, switch_route: SR) {
+        let mut listeners_to_remove: Vec<usize> = Vec::new();
+        for (i, listener) in RefCell::borrow(&*listeners).iter().enumerate() {
+            match &listener.callback() {
+                Some(callback) => {
+                    callback.emit(switch_route.clone());
+                }
+                None => {
+                    listeners_to_remove.push(i);
+                }
+            }
+        }
+
+        let mut listeners_mut = RefCell::borrow_mut(&*listeners);
+        for i in listeners_to_remove {
+            listeners_mut.remove(i);
         }
     }
 
-    pub fn register_callback<CB: Into<Callback<SR>>>(&mut self, callback: CB) {
-        self.callbacks.borrow_mut().push(callback.into());
-    }
-
-    pub fn deregister_callback(&mut self, callback: &Callback<SR>) -> Option<Callback<SR>> {
-        let remove_position = match self.callbacks.borrow().iter().position(|c| c == callback) {
-            Some(position) => Some(position),
-            None => None,
-        };
-
-        if let Some(position) = remove_position {
-            Some(self.callbacks.borrow_mut().remove(position))
-        } else {
-            None
-        }
+    pub fn register_callback<L: AsListener<SR=SR>>(&mut self, listener: L) {
+        self.listeners.borrow_mut().push(listener.as_listener());
     }
 }
 
+impl<SR> Default for SwitchRouteService<SR> where SR: SwitchRoute + 'static {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "yew")]
 impl<SR> From<yew::Callback<SR>> for Callback<SR>
 where
     SR: 'static,
