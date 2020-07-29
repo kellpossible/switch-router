@@ -1,5 +1,10 @@
 use gloo_events::EventListener;
-use std::{cell::RefCell, fmt::Debug, marker::PhantomData, rc::{Weak, Rc}};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    marker::PhantomData,
+    rc::{Rc, Weak},
+};
 use wasm_bindgen::JsValue;
 use web_sys::{History, Location};
 
@@ -39,7 +44,7 @@ impl<SR> Listener<SR> {
 impl<SR> Debug for Listener<SR> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match Weak::upgrade(&self.0) {
-            Some(rc) =>  write!(f, "Listener({:p})", rc),
+            Some(rc) => write!(f, "Listener({:p})", rc),
             None => write!(f, "Listener(None)"),
         }
     }
@@ -172,12 +177,15 @@ where
         }
     }
 
-    pub fn register_callback<L: AsListener<SR=SR>>(&mut self, listener: L) {
+    pub fn register_callback<L: AsListener<SR = SR>>(&mut self, listener: L) {
         self.listeners.borrow_mut().push(listener.as_listener());
     }
 }
 
-impl<SR> Default for SwitchRouteService<SR> where SR: SwitchRoute + 'static {
+impl<SR> Default for SwitchRouteService<SR>
+where
+    SR: SwitchRoute + 'static,
+{
     fn default() -> Self {
         Self::new()
     }
