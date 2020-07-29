@@ -50,7 +50,7 @@ pub trait AsListener {
     fn as_listener(&self) -> Listener<Self::SR>;
 }
 
-impl<SR> AsListener for Callback<SR> {
+impl<SR> AsListener for &Callback<SR> {
     type SR = SR;
     fn as_listener(&self) -> Listener<Self::SR> {
         Listener(Rc::downgrade(&self.0))
