@@ -1,8 +1,6 @@
 use std::{marker::PhantomData, cell::RefCell};
 use crate::{SwitchRouteService, route::SwitchRoute, Listener};
 
-type Listeners<R> = RefCell<Vec<Listener<R>>>;
-
 struct History<R> {
     stack: Vec<R>,
     history_pointer: usize,
@@ -33,8 +31,8 @@ impl<R: Clone> History<R> {
 }
 
 pub struct SimpleRouteService<R> {
-    history: RefCell<History<R>>,
-    listeners: Listeners<R>,
+    history: History<R>,
+    listeners: Vec<Listener<R>>,
     switch_route_type: PhantomData<R>,
 }
 
@@ -43,8 +41,8 @@ where
     R: SwitchRoute + 'static,
 {
     pub fn new(initial_route: R) -> Self {
-        let history = RefCell::new(History::new(initial_route));
-        let listeners = RefCell::new(Vec::new());
+        let history = History::new(initial_route);
+        let listeners = Vec::new();
 
         Self {
             history,
@@ -61,19 +59,19 @@ where
 
     fn set_route<RI: Into<Self::Route>>(&mut self, route: RI) {
         let route = route.into();
-        self.history.borrow_mut().push(route);
+        self.history.push(route);
     }
     
     fn replace_route<RI: Into<Self::Route>>(&mut self, route: RI) -> Self::Route {
         let route = route.into();
-        self.history.borrow_mut().replace_current(route)
+        self.history.replace_current(route)
     }
 
     fn get_route(&self) -> Self::Route {
-        self.history.borrow().get_current()
+        self.history.get_current()
     }
 
     fn register_callback<L: crate::listener::AsListener<R = Self::Route>>(&mut self, listener: L) {
-        self.listeners.borrow_mut().push(listener.as_listener());
+        self.listeners.push(listener.as_listener());
     }
 }
