@@ -1,18 +1,21 @@
-use std::{fmt::Debug, rc::{Rc, Weak}};
+use std::{
+    fmt::Debug,
+    rc::{Rc, Weak},
+};
 
 #[derive(Clone)]
-pub struct Callback<SR>(Rc<dyn Fn(SR)>);
+pub struct Callback<R>(Rc<dyn Fn(R)>);
 
-impl<SR> Callback<SR> {
-    pub fn new<F: Fn(SR) + 'static>(f: F) -> Self {
+impl<R> Callback<R> {
+    pub fn new<F: Fn(R) + 'static>(f: F) -> Self {
         Self(Rc::new(f))
     }
-    pub fn emit(&self, args: SR) {
+    pub fn emit(&self, args: R) {
         self.0(args)
     }
 }
 
-impl<SR> Debug for Callback<SR> {
+impl<R> Debug for Callback<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Callback({:p})", self.0)
     }
@@ -21,8 +24,8 @@ impl<SR> Debug for Callback<SR> {
 #[derive(Clone)]
 pub struct Listener<R>(Weak<dyn Fn(R)>);
 
-impl<SR> Listener<SR> {
-    pub fn callback(&self) -> Option<Callback<SR>> {
+impl<R> Listener<R> {
+    pub fn callback(&self) -> Option<Callback<R>> {
         Weak::upgrade(&self.0).map(|rc| Callback(rc))
     }
 }

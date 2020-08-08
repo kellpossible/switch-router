@@ -7,8 +7,10 @@ mod web;
 #[cfg(feature = "web")]
 pub use web::WebRouteService;
 
-use crate::{listener::{AsListener, Listener}, route::SwitchRoute};
-use std::cell::RefCell;
+use crate::{
+    listener::{AsListener, Listener},
+    route::SwitchRoute,
+};
 
 pub trait SwitchRouteService {
     type Route: SwitchRoute + 'static;
@@ -17,9 +19,10 @@ pub trait SwitchRouteService {
     fn replace_route<RI: Into<Self::Route>>(&mut self, route: RI) -> Self::Route;
     fn get_route(&self) -> Self::Route;
     fn register_callback<L: AsListener<R = Self::Route>>(&mut self, listener: L);
+    fn back(&mut self) -> Option<Self::Route>;
 }
 
-fn notify_callbacks<R: Clone>(listeners: &mut Vec<Listener<R>>, route: R) {
+fn notify_callbacks<R: Clone>(listeners: &mut Vec<Listener<R>>, route: &R) {
     let mut listeners_to_remove: Vec<usize> = Vec::new();
     for (i, listener) in listeners.iter().enumerate() {
         match &listener.callback() {
