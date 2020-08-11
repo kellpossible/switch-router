@@ -9,7 +9,10 @@ struct History<R> {
 
 pub type RouteChanged = bool;
 
-impl<R> History<R> where R: SwitchRoute + Clone {
+impl<R> History<R>
+where
+    R: SwitchRoute + Clone,
+{
     pub fn new(initial_route: R) -> Self {
         Self {
             stack: vec![initial_route],

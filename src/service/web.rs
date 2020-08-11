@@ -86,7 +86,7 @@ where
     R: SwitchRoute + 'static,
 {
     type Route = R;
-    fn set_route<RI: Into<Self::Route>>(&mut self, route: RI){
+    fn set_route<RI: Into<Self::Route>>(&mut self, route: RI) {
         let route = route.into();
         //TODO: replace null with actual state storage
         self.history
